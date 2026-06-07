@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>列车 ATO 模拟运行系统 (四显示信号机版)</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    font-family: 'Consolas', 'Microsoft YaHei', 'SimHei', monospace;
+    min-height: 100vh;
+    display: flex; justify-content: center; align-items: center;
+    user-select: none;
+    overflow-x: auto;
+}
+.main-container {
+    display: flex;
+    gap: 16px;
+    padding: 16px;
+    width: 100%;
+    align-items: stretch;
+}
+.panel {
+    background: #16213e;
+    border: 2px solid #0f3460;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+.left-panel {
+    width: 230px;
+    display: flex; flex-direction: column; gap: 10px;
+}
+.canvas-panel {
+    flex: 1;
+    display: flex; justify-content: center; align-items: center;
+    padding: 8px;
+    min-width: 0;
+    overflow: hidden;
+}
+.right-panel {
+    width: 260px;
+    display: flex; flex-direction: column; gap: 14px;
+}
+.panel-title {
+    text-align: center;
+    font-size: 14px;
+    font-weight: bold;
+    color: #e94560;
+    letter-spacing: 2px;
+    border-bottom: 1px solid #0f3460;
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+}
+.relay-btn {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid #444;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    background: #1a1a1a;
+    color: #777;
+    transition: all 0.15s;
+    letter-spacing: 1px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.relay-btn:hover { border-color: #888; }
+.relay-btn:active { transform: scale(0.97); }
+.relay-btn.on {
+    border-color: #4fc3f7;
+    color: #4fc3f7;
+    background: #0a1a2a;
+    box-shadow: 0 0 12px rgba(79,195,247,0.3);
+}
+.relay-btn.on .relay-dot-indicator {
+    background: #4fc3f7;
+    box-shadow: 0 0 8px #4fc3f7;
+}
+.relay-dot-indicator {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #333;
+    transition: all 0.2s;
+    border: 1px solid #555;
+}
+.relay-name {
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 0;
+}
+.relay-result {
+    margin-top: 8px;
+    padding: 10px;
+    background: #0d1a33;
+    border: 1px solid #0f3460;
+    border-radius: 8px;
+    text-align: center;
+}
+.relay-result-label {
+    font-size: 10px; color: #888; letter-spacing: 1px;
+}
+.relay-result-code {
+    font-size: 28px; font-weight: bold; letter-spacing: 4px;
+    transition: color 0.2s;
+}
+
+.btn-action {
+    width: 100%; padding: 10px;
+    border: 2px solid #0f3460; border-radius: 8px;
+    font-size: 14px; font-weight: bold; cursor: pointer;
+    background: #1a3a5c; color: #8ab4f8;
+    transition: all 0.15s; letter-spacing: 2px;
+}
+.btn-action:hover { background: #234a78; border-color: #4fc3f7; color: #fff; }
+.btn-action:active { transform: scale(0.96); }
+.btn-ato { background: #0d3b0d; border-color: #2e7d32; color: #81c784; }
+.btn-ato:hover { background: #1b5e20; }
+.btn-ato.running { background: #b71c1c; border-color: #f44336; color: #ef9a9a; }
+.btn-reset { background: #3b0d0d; border-color: #7d2e2e; color: #e57373; }
+.btn-reset:hover { background: #5e1b1b; }
+
+.btn-trainb {
+    padding: 5px 8px;
+    border: 1px solid #5d4037;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: pointer;
+    background: #3e2723;
+    color: #ffab40;
+    transition: all 0.15s;
+    letter-spacing: 1px;
+    flex: 1;
+    min-width: 42px;
+}
+.btn-trainb:hover { background: #5d4037; border-color: #ff7043; color: #fff; }
+.btn-trainb:active { transform: scale(0.95); }
+.btn-trainb-stop { background: #4a1414; border-color: #c62828; color: #ef5350; }
+.btn-trainb-stop:hover { background: #6b1a1a; border-color: #f44336; }
+.btn-trainb-start { background: #1b3a1b; border-color: #2e7d32; color: #81c784; }
+.btn-trainb-start:hover { background: #2a4a2a; border-color: #4caf50; }
+
+.mode-indicator {
+    text-align: center; font-size: 12px; padding: 6px;
+    border-radius: 6px; background: #0d1a33; border: 1px solid #0f3460;
+}
+.mode-auto { color: #4fc3f7; }
+.mode-manual { color: #ffd600; }
+
+canvas#trackCanvas { display: block; border-radius: 8px; max-width: 100%; height: auto; }
+
+.info-block {
+    background: #0d1a33;
+    border: 1px solid #0f3460;
+    border-radius: 8px;
+    padding: 12px;
+}
+.info-label { font-size: 11px; color: #888; letter-spacing: 1px; }
+.info-value { font-size: 20px; font-weight: bold; color: #fff; }
+.info-value.speed-a { color: #4fc3f7; }
+.info-value.speed-b { color: #ff7043; }
+.info-hint { font-size: 10px; color: #666; }
+
+.signal-legend {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px;
+}
+.legend-item {
+    display: flex; align-items: center; gap: 4px; font-size: 11px;
+}
+.legend-dot {
+    width: 12px; height: 12px; border-radius: 50%; border: 1px solid #555;
+}
+.legend-dot.l { background: #00e676; }
+.legend-dot.lu { background: #aeea00; }
+.legend-dot.u { background: #ffd600; }
+.legend-dot.hu { background: #ff1744; }
+
+.gauge-container {
+    position: relative;
+    width: 200px; height: 110px;
+    margin: 0 auto;
+}
+.gauge-label {
+    text-align: center; font-size: 11px; color: #aaa; margin-top: -8px;
+}
+</style>
+</head>
+<body>
+<div class="main-container">
+
+    <div class="panel left-panel" id="controlPanel">
+        <div class="panel-title">继电器控制面板</div>
+        <button class="relay-btn" data-relay="ZXJ" title="正线继电器">
+            <span>ZXJ</span><span class="relay-name">正线</span><span class="relay-dot-indicator"></span>
+        </button>
+        <button class="relay-btn" data-relay="LXJ" title="绿灯继电器">
+            <span>LXJ</span><span class="relay-name">绿灯</span><span class="relay-dot-indicator"></span>
+        </button>
+        <button class="relay-btn" data-relay="LUXJ" title="绿黄继电器">
+            <span>LUXJ</span><span class="relay-name">绿黄</span><span class="relay-dot-indicator"></span>
+        </button>
+        <button class="relay-btn" data-relay="X1LXJ" title="下一绿灯继电器">
+            <span>X1LXJ</span><span class="relay-name">下绿</span><span class="relay-dot-indicator"></span>
+        </button>
+        <button class="relay-btn" data-relay="TXJ" title="通过继电器">
+            <span>TXJ</span><span class="relay-name">通过</span><span class="relay-dot-indicator"></span>
+        </button>
+        <button class="relay-btn" data-relay="YXJ" title="引导继电器">
+            <span>YXJ</span><span class="relay-name">引导</span><span class="relay-dot-indicator"></span>
+        </button>
+        <div class="relay-result" id="relayResult">
+            <div class="relay-result-label">继电器组合 → 低频码</div>
+            <div class="relay-result-code" id="relayLFCode" style="color:#ff1744;">HU</div>
+        </div>
+        <div class="mode-indicator" id="modeIndicator">
+            <span class="mode-auto">⚡ ATO 自动模式</span>
+        </div>
+        <button class="btn-action btn-ato" id="btnATO" title="切换 ATO 自动 / 手动模式">切换手动模式</button>
+        <button class="btn-action btn-reset" id="btnReset" title="复位：列车回到起点，速度归零">⟳ 复位重置</button>
+    </div>
+
+    <div class="panel canvas-panel">
+        <canvas id="trackCanvas"></canvas>
+    </div>
+
+    <div class="panel right-panel">
+        <div class="panel-title">运行状态监控</div>
+
+        <div class="info-block">
+            <div class="info-label">🚂 本务列车 (实验车) — Train A</div>
+            <div style="display:flex;align-items:baseline;gap:8px;margin-top:4px;">
+                <span class="info-value speed-a" id="speedA">0</span>
+                <span style="font-size:13px;color:#aaa;">km/h</span>
+            </div>
+            <div style="margin-top:4px;">
+                <span class="info-label" id="lfCodeLabel">低频码(固定闭塞)：</span>
+                <span style="font-weight:bold;font-size:16px;" id="lfCodeA">--</span>
+            </div>
+            <div>
+                <span class="info-label">目标速度：</span>
+                <span style="color:#81c784;" id="targetSpeedA">0 km/h</span>
+            </div>
+            <div>
+                <span class="info-label">加速度：</span>
+                <span style="color:#ffab40;" id="accelA">0 m/s²</span>
+            </div>
+            <div>
+                <span class="info-label">所在区段：</span>
+                <span style="color:#b39ddb;" id="sectionA">1</span>
+            </div>
+            <div>
+                <span class="info-label">距前车距离：</span>
+                <span style="color:#ff7043;" id="distToPreceding">-- m</span>
+            </div>
+        </div>
+
+        <div style="text-align:center;">
+            <div class="info-label" style="font-size:12px;">速度表 (Train A)</div>
+            <canvas id="gaugeCanvas" width="200" height="110" style="display:block;margin:0 auto;"></canvas>
+            <div class="gauge-label">0 ──────── 80 ──────── 160 km/h</div>
+        </div>
+
+        <div class="info-block">
+            <div class="info-label">🚃 前列列车 (前方占用) — Train B</div>
+            <div style="display:flex;align-items:baseline;gap:8px;margin-top:4px;">
+                <span class="info-value speed-b" id="speedB">0</span>
+                <span style="font-size:13px;color:#aaa;">km/h</span>
+            </div>
+            <div>
+                <span class="info-label">所在区段：</span>
+                <span style="color:#b39ddb;" id="sectionB">5</span>
+            </div>
+            <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;">
+                <button class="btn-trainb" id="btnBAccel" title="前车加速 +10 km/h">加速</button>
+                <button class="btn-trainb" id="btnBDecel" title="前车减速 -10 km/h">减速</button>
+                <button class="btn-trainb btn-trainb-stop" id="btnBStop" title="前车紧急停止">停止</button>
+                <button class="btn-trainb btn-trainb-start" id="btnBStart" title="前车启动至 160 km/h">启动</button>
+            </div>
+        </div>
+
+        <div class="info-block">
+            <div class="info-label">信号灯图例</div>
+            <div class="signal-legend">
+                <div class="legend-item"><span class="legend-dot l"></span> L 绿灯 160 km/h</div>
+                <div class="legend-item"><span class="legend-dot lu"></span> LU 绿黄灯 120 km/h</div>
+                <div class="legend-item"><span class="legend-dot u"></span> U 黄灯 80 km/h</div>
+                <div class="legend-item"><span class="legend-dot hu" style="background:#ff1744;"></span> H 红灯 0 km/h</div>
+            </div>
+        </div>
+
+        <div class="info-hint" style="margin-top:4px;text-align:center;">
+            提示：固定闭塞 — 空闲分区数 → 低频码 → 信号灯 → 速度<br>
+            ⚡ 自动：占用H=0km/h | 1空闲U=80km/h<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;2空闲LU=120km/h | 3+空闲L=160km/h<br>
+            🔧 手动：继电器组合 → 低频码 → 速度<br>
+            两种模式完全独立，互不干扰
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    // ============ DOM 元素 ============
+    const canvas = document.getElementById('trackCanvas');
+    const ctx = canvas.getContext('2d');
+    const gaugeCanvas = document.getElementById('gaugeCanvas');
+    const gaugeCtx = gaugeCanvas.getContext('2d');
+
+    const elSpeedA = document.getElementById('speedA');
+    const elSpeedB = document.getElementById('speedB');
+    const elLfCodeA = document.getElementById('lfCodeA');
+    const elLfCodeLabel = document.getElementById('lfCodeLabel');
+    const elTargetSpeedA = document.getElementById('targetSpeedA');
+    const elAccelA = document.getElementById('accelA');
+    const elSectionA = document.getElementById('sectionA');
+    const elSectionB = document.getElementById('sectionB');
+    const elDistToPreceding = document.getElementById('distToPreceding');
+    const elModeIndicator = document.getElementById('modeIndicator');
+    const btnATO = document.getElementById('btnATO');
+    const btnReset = document.getElementById('btnReset');
+    const elRelayLFCode = document.getElementById('relayLFCode');
+    const relayButtons = document.querySelectorAll('.relay-btn');
+    const btnBAccel = document.getElementById('btnBAccel');
+    const btnBDecel = document.getElementById('btnBDecel');
+    const btnBStop = document.getElementById('btnBStop');
+    const btnBStart = document.getElementById('btnBStart');
+
+    // ============ 轨道参数 ============
+    const TRACK_CX = 600;
+    const TRACK_CY = 425;
+    const TRACK_L = 520;
+    const TRACK_R = 220;
+    const TRACK_PERIMETER_PX = 2 * TRACK_L + 2 * Math.PI * TRACK_R;
+    const NUM_SECTIONS = 16;
+    const SECTION_LENGTH_M = 1333;
+    const TRACK_LENGTH_M = NUM_SECTIONS * SECTION_LENGTH_M;
+    const PX_PER_M = TRACK_PERIMETER_PX / TRACK_LENGTH_M;
+    const TRACK_WIDTH = 20;
+
+    // 画布尺寸
+    const CANVAS_W = 1240;
+    const CANVAS_H = 880;
+
+    // 模拟速度倍率 (越大越快)
+    const SIM_SPEED = 4;
+
+    // ============ ZPW-2000A 低频码配置 ============
+    const LF_CODE_CONFIG = {
+        'L':  { name: '绿灯',   color: '#00e676', targetSpeed: 160 },
+        'LU': { name: '绿黄灯', color: '#aeea00', targetSpeed: 120 },
+        'U':  { name: '黄灯',   color: '#ffd600', targetSpeed: 80  },
+        'HU': { name: '红黄灯', color: '#ff1744', targetSpeed: 20  },
+        'H':  { name: '红灯',   color: '#ff1744', targetSpeed: 0   },
+        'U2': { name: '黄2灯',  color: '#ff9100', targetSpeed: 30  },
+        'UU': { name: '双黄灯', color: '#ff6d00', targetSpeed: 20  },
+        'HB': { name: '红白灯', color: '#e040fb', targetSpeed: 20  },
+    };
+
+    // ============ ZPW-2000A 固定闭塞参数 ============
+    const FB_CONFIG = {
+        maxLineSpeedKmh: 160,   // 线路最高限速
+        maxAccel: 0.6,          // 最大加速度 (m/s²)
+        serviceBrake: 1.0,      // 常用制动率 (m/s²)
+    };
+
+    // ============ 轨道几何计算 ============
+    function getTrackPosition(distM) {
+        let d = distM * PX_PER_M;
+        d = ((d % TRACK_PERIMETER_PX) + TRACK_PERIMETER_PX) % TRACK_PERIMETER_PX;
+
+        const d1 = TRACK_L;
+        const d2 = TRACK_L + Math.PI * TRACK_R;
+        const d3 = 2 * TRACK_L + Math.PI * TRACK_R;
+        const cx = TRACK_CX, cy = TRACK_CY;
+        let x, y, angle;
+
+        if (d < d1) {
+            x = cx + TRACK_L / 2 - d;
+            y = cy - TRACK_R;
+            angle = Math.PI;
+        } else if (d < d2) {
+            const dLocal = d - d1;
+            const theta = -Math.PI / 2 - dLocal / TRACK_R;
+            x = cx - TRACK_L / 2 + TRACK_R * Math.cos(theta);
+            y = cy + TRACK_R * Math.sin(theta);
+            angle = theta - Math.PI / 2;
+        } else if (d < d3) {
+            const dLocal = d - d2;
+            x = cx - TRACK_L / 2 + dLocal;
+            y = cy + TRACK_R;
+            angle = 0;
+        } else {
+            const dLocal = d - d3;
+            const theta = Math.PI / 2 - dLocal / TRACK_R;
+            x = cx + TRACK_L / 2 + TRACK_R * Math.cos(theta);
+            y = cy + TRACK_R * Math.sin(theta);
+            angle = theta - Math.PI / 2;
+        }
+
+        while (angle > Math.PI) angle -= 2 * Math.PI;
+        while (angle < -Math.PI) angle += 2 * Math.PI;
+        return { x, y, angle };
+    }
+
+    function getNormal(angle) {
+        const a = angle + Math.PI / 2;
+        return { nx: Math.cos(a), ny: Math.sin(a) };
+    }
+
+    // ============ 列车类 ============
+    class Train {
+        constructor(name, color, initDistM, initSpeed) {
+            this.name = name;
+            this.color = color;
+            this.distM = initDistM;      // 位置 (米)
+            this.speedKmh = initSpeed;    // 速度 (km/h)
+            this.lengthM = 24;            // 列车长度 (米)
+            this.lengthPx = this.lengthM * PX_PER_M;
+            this.widthPx = 14;
+        }
+    }
+
+    // ============ 全局状态 ============
+    let trainA = new Train('Train A', '#4fc3f7', 2000, 0);     // 区段1，静止
+let trainB = new Train('Train B', '#ff7043', 4666, 160);  // 区段3，160 km/h
+    let autoMode = true;
+    let activeLFCode = 'L';
+    let isRunning = true;
+    let lastTime = null;
+
+    // Train B 手动控制
+    let trainBTargetSpeed = 160;
+    let trainBAccel = 0.6;
+    let trainBBrake = 0.8;
+
+    // 继电器状态: ZXJ, LXJ, LUXJ, X1LXJ, TXJ, YXJ
+    let relayStates = {
+        ZXJ: false, LXJ: false, LUXJ: false, X1LXJ: false, TXJ: false, YXJ: false
+    };
+
+    // 区段占用状态 (由 Train B 占用)
+    let sectionOccupied = new Array(NUM_SECTIONS).fill(false);
+
+    // ============ 区段计算 ============
+    function getSectionIndex(distM) {
+        let d = ((distM % TRACK_LENGTH_M) + TRACK_LENGTH_M) % TRACK_LENGTH_M;
+        return Math.floor(d / SECTION_LENGTH_M);
+    }
+
+    function getSectionOccupancy() {
+        sectionOccupied.fill(false);
+        // Train B 占用区段 (前列车，影响信号)
+        markTrainSections(trainB, sectionOccupied);
+        // Train A 也显示在轨道上但不影响自身 LF 码计算
+    }
+
+    function markTrainSections(train, arr) {
+        const sec = getSectionIndex(train.distM);
+        arr[sec] = true;
+        const rearDist = train.distM - train.lengthM;
+        const secRear = getSectionIndex(rearDist);
+        if (secRear !== sec) arr[secRear] = true;
+        // 处理环形跨越 0 点的情况
+        const frontDist = train.distM + train.lengthM;
+        const secFront = getSectionIndex(frontDist);
+        if (secFront !== sec && secFront !== secRear) arr[secFront] = true;
+    }
+
+    function isSectionOccupiedByTrainA(secIdx) {
+        const secA = getSectionIndex(trainA.distM);
+        const rearDistA = trainA.distM - trainA.lengthM;
+        const secARear = getSectionIndex(rearDistA);
+        const frontDistA = trainA.distM + trainA.lengthM;
+        const secAFront = getSectionIndex(frontDistA);
+        return secIdx === secA || secIdx === secARear || secIdx === secAFront;
+    }
+
+    // ============ ZPW-2000A 固定闭塞：计算到前行列车的距离 ============
+    function calculateDistanceToPreceding(trainDistM) {
+        let rawDist = trainB.distM - trainDistM;
+        if (rawDist < 0) rawDist += TRACK_LENGTH_M;
+        const distToRearB = rawDist - trainB.lengthM;
+        return Math.max(0, distToRearB);
+    }
+
+    // ============ ZPW-2000A 固定闭塞：根据前方空闲区段数确定低频码 ============
+    function getAutoLFCode(trainDistM) {
+        const mySection = getSectionIndex(trainDistM);
+        if (sectionOccupied[mySection]) return 'H';
+        let clearBlocks = 0;
+        for (let i = 1; i <= NUM_SECTIONS; i++) {
+            const checkSec = (mySection + i) % NUM_SECTIONS;
+            if (sectionOccupied[checkSec]) break;
+            clearBlocks++;
+        }
+        if (clearBlocks === 0) return 'H';
+        if (clearBlocks === 1) return 'U';
+        if (clearBlocks === 2) return 'LU';
+        return 'L';
+    }
+
+    // ============ 继电器组合 → 低频码 ============
+    function computeLFCodeFromRelays() {
+        const r = relayStates;
+        const anyOther = r.ZXJ || r.LXJ || r.LUXJ || r.X1LXJ || r.TXJ;
+        if (r.YXJ && anyOther) return 'HU';  // YXJ + 其他继电器 → 红黄灯
+        if (r.YXJ) return 'HB';              // 仅YXJ → 红白灯 (引导信号)
+        if (r.LXJ && r.ZXJ && r.LUXJ && r.X1LXJ && r.TXJ) return 'L';   // LXJ+ZXJ+LUXJ+X1LXJ+TXJ → 绿灯
+        if (r.LXJ && r.ZXJ && r.LUXJ && r.X1LXJ) return 'LU';           // LXJ+ZXJ+LUXJ+X1LXJ → 绿黄灯
+        if (r.LXJ && r.ZXJ && r.X1LXJ) return 'U2';                     // LXJ+ZXJ+X1LXJ → 黄2灯
+        if (r.LXJ && r.ZXJ) return 'U';                                 // LXJ+ZXJ → 黄灯
+        if (r.LXJ) return 'UU';                                         // 仅LXJ → 双黄灯
+        return 'HU';                                                     // 全落下 → 红黄灯 (停车)
+    }
+
+    // ============ ZPW-2000A 固定闭塞速度控制 ============
+    function updateFixedBlockSpeed(train, lfCode, dt) {
+        const cfg = FB_CONFIG;
+        const config = LF_CODE_CONFIG[lfCode];
+        const targetSpeedMs = config.targetSpeed / 3.6;
+        const currentSpeedMs = train.speedKmh / 3.6;
+
+        const speedDiff = targetSpeedMs - currentSpeedMs;
+        let newSpeedMs;
+        if (speedDiff > 0) {
+            newSpeedMs = currentSpeedMs + cfg.maxAccel * dt;
+            if (newSpeedMs > targetSpeedMs) newSpeedMs = targetSpeedMs;
+        } else {
+            newSpeedMs = currentSpeedMs - cfg.serviceBrake * dt;
+            if (newSpeedMs < targetSpeedMs) newSpeedMs = targetSpeedMs;
+        }
+        if (newSpeedMs < 0) newSpeedMs = 0;
+        const maxLineMs = cfg.maxLineSpeedKmh / 3.6;
+        if (newSpeedMs > maxLineMs) newSpeedMs = maxLineMs;
+
+        train.speedKmh = newSpeedMs * 3.6;
+        const accel = (newSpeedMs - currentSpeedMs) / Math.max(dt, 0.001);
+
+        return {
+            accel: accel,
+            targetSpeedKmh: config.targetSpeed,
+            distToPreceding: Math.round(calculateDistanceToPreceding(train.distM)),
+            derivedCode: lfCode
+        };
+    }
+
+    // ============ 绘图 ============
+    function drawTrack() {
+        ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+
+        // 背景网格
+        ctx.strokeStyle = '#1a2a4a';
+        ctx.lineWidth = 0.5;
+        for (let gx = 0; gx < CANVAS_W; gx += 30) {
+            ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, CANVAS_H); ctx.stroke();
+        }
+        for (let gy = 0; gy < CANVAS_H; gy += 30) {
+            ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(CANVAS_W, gy); ctx.stroke();
+        }
+
+        // 绘制轨道区段底色
+        for (let s = 0; s < NUM_SECTIONS; s++) {
+            drawSectionBackground(s);
+        }
+
+        // 绘制轨道
+        drawTrackPath('#444', TRACK_WIDTH + 8);
+        drawTrackPath('#555', TRACK_WIDTH + 2);
+        drawTrackPath('#1a1a1a', TRACK_WIDTH - 4);
+
+        // 区段分隔线 + 信号灯
+        drawSectionBoundaries();
+
+        // 绘制列车
+        drawTrain(trainA);
+        drawTrain(trainB);
+
+        // 轨道上方信息标签
+        drawTrainLabel(trainA);
+        drawTrainLabel(trainB);
+    }
+
+    function drawTrackPath(color, width) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+
+        const cx = TRACK_CX, cy = TRACK_CY;
+        const hl = TRACK_L / 2;
+
+        // 顶部直道 (右→左)
+        ctx.moveTo(cx + hl, cy - TRACK_R);
+        ctx.lineTo(cx - hl, cy - TRACK_R);
+        // 左半圆 (上→下, 逆时针)
+        ctx.arc(cx - hl, cy, TRACK_R, -Math.PI / 2, Math.PI / 2);
+        // 底部直道 (左→右)
+        ctx.lineTo(cx + hl, cy + TRACK_R);
+        // 右半圆 (下→上, 逆时针)
+        ctx.arc(cx + hl, cy, TRACK_R, Math.PI / 2, -Math.PI / 2);
+
+        ctx.stroke();
+    }
+
+    function drawSectionBackground(secIdx) {
+        const occupiedByB = sectionOccupied[secIdx];
+        const occupiedByA = isSectionOccupiedByTrainA(secIdx);
+        const startM = secIdx * SECTION_LENGTH_M;
+        const endM = (secIdx + 1) * SECTION_LENGTH_M;
+        const steps = 20;
+
+        ctx.lineWidth = TRACK_WIDTH + 6;
+        ctx.lineCap = 'butt';
+        ctx.beginPath();
+
+        for (let i = 0; i <= steps; i++) {
+            const dm = startM + (endM - startM) * (i / steps);
+            const pos = getTrackPosition(dm);
+            if (i === 0) ctx.moveTo(pos.x, pos.y);
+            else ctx.lineTo(pos.x, pos.y);
+        }
+
+        if (occupiedByB || occupiedByA) {
+            ctx.strokeStyle = 'rgba(255,23,68,0.35)';
+        } else {
+            ctx.strokeStyle = 'rgba(0,230,118,0.08)';
+        }
+        ctx.stroke();
+    }
+
+    function drawSectionBoundaries() {
+        for (let s = 0; s < NUM_SECTIONS; s++) {
+            const distM = s * SECTION_LENGTH_M;
+            const pos = getTrackPosition(distM);
+            const norm = getNormal(pos.angle);
+
+            // 分隔标记线
+            const innerX = pos.x + norm.nx * (TRACK_WIDTH / 2);
+            const innerY = pos.y + norm.ny * (TRACK_WIDTH / 2);
+            const outerX = pos.x - norm.nx * (TRACK_WIDTH / 2);
+            const outerY = pos.y - norm.ny * (TRACK_WIDTH / 2);
+
+            ctx.strokeStyle = '#888';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(innerX, innerY);
+            ctx.lineTo(outerX, outerY);
+            ctx.stroke();
+
+            // 地面信号灯位置 (轨道外侧)
+            const signalDist = TRACK_WIDTH / 2 + 18;
+            const sx = pos.x - norm.nx * signalDist;
+            const sy = pos.y - norm.ny * signalDist;
+
+            // 绘制灯柱
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(pos.x - norm.nx * (TRACK_WIDTH / 2 + 4), pos.y - norm.ny * (TRACK_WIDTH / 2 + 4));
+            ctx.lineTo(sx, sy);
+            ctx.stroke();
+
+            // === 核心：计算当前状态并绘制物理四灯位信号机 ===
+            
+            // 1. 获取当前应该显示的低频码状态 (四显示固定闭塞)
+            let activeCode = '';
+            if (autoMode) {
+                let clearBlocks = 0;
+                for (let i = 0; i < NUM_SECTIONS; i++) {
+                    const checkSec = (s + i) % NUM_SECTIONS;
+                    if (sectionOccupied[checkSec] || isSectionOccupiedByTrainA(checkSec)) break;
+                    clearBlocks++;
+                }
+                if (clearBlocks === 0) activeCode = 'H';
+                else if (clearBlocks === 1) activeCode = 'U';
+                else if (clearBlocks === 2) activeCode = 'LU';
+                else activeCode = 'L';
+            } else {
+                activeCode = computeLFCodeFromRelays();
+            }
+
+            // 2. 开始绘制物理信号机头
+            ctx.save();
+            ctx.translate(sx, sy);
+            // 移除了先前的 ctx.rotate()，使得信号机在界面上始终保持绝对竖直
+
+            const housingWidth = 14;
+            const housingHeight = 44;
+
+            // 绘制黑灰色的信号机外壳 (背板)
+            ctx.fillStyle = '#151515';
+            ctx.fillRect(-housingWidth / 2, -housingHeight / 2, housingWidth, housingHeight);
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(-housingWidth / 2, -housingHeight / 2, housingWidth, housingHeight);
+
+            // 遮檐 (信号机上方的遮光罩)
+            ctx.fillStyle = '#111';
+            ctx.fillRect(-housingWidth / 2 - 2, -housingHeight / 2 - 6, housingWidth + 4, 7);
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(-housingWidth / 2 - 2, -housingHeight / 2 - 6, housingWidth + 4, 7);
+
+            // 3. 根据低频码确定四个物理灯位的亮灭状态：绿(上)、黄1(中上)、红(中下)、黄2(下)
+            // 四显示制式：L=绿灯, LU=绿+黄1, U/U2/UU=黄2, HU=红+黄1, H=红灯, HB=红灯
+            const codeBulbMap = {
+                'L':  { green: true,  yellow1: false, red: false, yellow2: false },
+                'LU': { green: true,  yellow1: true,  red: false, yellow2: false },
+                'U':  { green: false, yellow1: false, red: false, yellow2: true  },
+                'U2': { green: false, yellow1: false, red: false, yellow2: true  },
+                'UU': { green: false, yellow1: false, red: false, yellow2: true  },
+                'HU': { green: false, yellow1: true,  red: true,  yellow2: false },
+                'H':  { green: false, yellow1: false, red: true,  yellow2: false },
+                'HB': { green: false, yellow1: false, red: true,  yellow2: false },
+            };
+            const bulbMap = codeBulbMap[activeCode] || codeBulbMap['HU'];
+            const bulbs = [
+                { y: -15, color: '#00e676', active: bulbMap.green    },   // 绿灯 (上)
+                { y: -5,  color: '#ffd600', active: bulbMap.yellow1  },   // 黄1灯 (中上)
+                { y: 5,   color: '#ff1744', active: bulbMap.red      },   // 红灯 (中下)
+                { y: 15,  color: '#ffd600', active: bulbMap.yellow2  },   // 黄2灯 (下)
+            ];
+
+            // 4. 遍历并渲染这四个灯泡
+            bulbs.forEach(bulb => {
+                ctx.beginPath();
+                ctx.arc(0, bulb.y, 3.5, 0, Math.PI * 2);
+                
+                if (bulb.active) {
+                    // 【亮灯状态】
+                    ctx.fillStyle = bulb.color;
+                    ctx.fill();
+                    
+                    // 发光光晕效果
+                    const glow = ctx.createRadialGradient(0, bulb.y, 2, 0, bulb.y, 12);
+                    glow.addColorStop(0, bulb.color);
+                    glow.addColorStop(1, 'transparent');
+                    ctx.fillStyle = glow;
+                    ctx.beginPath();
+                    ctx.arc(0, bulb.y, 12, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // 灯罩玻璃高光
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                    ctx.beginPath();
+                    ctx.arc(-1, bulb.y - 1, 1.5, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    // 【灭灯状态】(呈现暗色)
+                    ctx.fillStyle = '#2a2a2a';
+                    ctx.fill();
+                    ctx.strokeStyle = '#000';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+            });
+
+            ctx.restore();
+        }
+    }
+
+    function drawTrain(train) {
+        const pos = getTrackPosition(train.distM);
+        const norm = getNormal(pos.angle);
+
+        const displayLen = Math.max(train.lengthPx, 20);
+        const displayWid = Math.max(train.widthPx, 10);
+        const halfLen = displayLen / 2;
+        const halfWid = displayWid / 2;
+
+        // 前端点
+        const frontX = pos.x + Math.cos(pos.angle) * halfLen;
+        const frontY = pos.y + Math.sin(pos.angle) * halfLen;
+        // 后端点
+        const rearX = pos.x - Math.cos(pos.angle) * halfLen;
+        const rearY = pos.y - Math.sin(pos.angle) * halfLen;
+
+        ctx.save();
+        ctx.translate(pos.x, pos.y);
+        ctx.rotate(pos.angle);
+
+        // 车身阴影
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(-halfLen + 2, -halfWid + 2, displayLen, displayWid);
+
+        // 车身
+        const bodyGrad = ctx.createLinearGradient(0, -halfWid, 0, halfWid);
+        bodyGrad.addColorStop(0, train.color);
+        bodyGrad.addColorStop(0.5, '#fff');
+        bodyGrad.addColorStop(1, train.color);
+        ctx.fillStyle = bodyGrad;
+        ctx.fillRect(-halfLen, -halfWid, displayLen, displayWid);
+
+        // 边框
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(-halfLen, -halfWid, displayLen, displayWid);
+
+        // 车窗
+        const winW = 4;
+        const winH = 5;
+        ctx.fillStyle = '#fff';
+        for (let w = -halfLen + 6; w < halfLen - 4; w += 7) {
+            ctx.fillRect(w, -winH / 2, winW, winH);
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 0.5;
+            ctx.strokeRect(w, -winH / 2, winW, winH);
+        }
+
+        // 车头灯 (前方)
+        ctx.fillStyle = '#ffeb3b';
+        ctx.beginPath();
+        ctx.arc(halfLen - 2, -halfWid + 4, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(halfLen - 2, halfWid - 4, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    function drawTrainLabel(train) {
+        const pos = getTrackPosition(train.distM);
+        const norm = getNormal(pos.angle);
+        const labelY = pos.y - norm.ny * (train.widthPx / 2 + 22);
+        const labelX = pos.x - norm.nx * (train.widthPx / 2 + 22);
+
+        // 背景框
+        const text = train.name === 'Train A'
+            ? `${Math.round(train.speedKmh)} km/h | ${activeLFCode}`
+            : `${Math.round(train.speedKmh)} km/h`;
+        ctx.font = 'bold 11px "Consolas","Microsoft YaHei",monospace';
+        const metrics = ctx.measureText(text);
+        const tw = metrics.width;
+        const th = 14;
+
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(labelX - tw / 2 - 6, labelY - th / 2 - 2, tw + 12, th + 4);
+        ctx.strokeStyle = train.color;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(labelX - tw / 2 - 6, labelY - th / 2 - 2, tw + 12, th + 4);
+
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, labelX, labelY);
+        ctx.textAlign = 'start';
+    }
+
+    function drawGauge(speedKmh) {
+        const gw = gaugeCanvas.width;
+        const gh = gaugeCanvas.height;
+        gaugeCtx.clearRect(0, 0, gw, gh);
+
+        const cx = gw / 2;
+        const cy = gh - 10;
+        const radius = 85;
+        const startAngle = Math.PI;
+        const endAngle = 0;
+
+        // 背景弧
+        gaugeCtx.beginPath();
+        gaugeCtx.arc(cx, cy, radius, startAngle, endAngle);
+        gaugeCtx.strokeStyle = '#2a2a4a';
+        gaugeCtx.lineWidth = 16;
+        gaugeCtx.stroke();
+
+        // 彩色弧段
+        const maxSpeed = 160;
+        const segments = [
+            { from: 0, to: 25, color: '#ff1744' },
+            { from: 25, to: 60, color: '#ffd600' },
+            { from: 60, to: 120, color: '#aeea00' },
+            { from: 120, to: 160, color: '#00e676' },
+        ];
+
+        for (const seg of segments) {
+            const sAngle = startAngle + (seg.from / maxSpeed) * Math.PI;
+            const eAngle = startAngle + (seg.to / maxSpeed) * Math.PI;
+            gaugeCtx.beginPath();
+            gaugeCtx.arc(cx, cy, radius, sAngle, eAngle);
+            gaugeCtx.strokeStyle = seg.color;
+            gaugeCtx.lineWidth = 16;
+            gaugeCtx.stroke();
+        }
+
+        // 刻度线
+        for (let v = 0; v <= maxSpeed; v += 10) {
+            const angle = startAngle + (v / maxSpeed) * Math.PI;
+            const innerR = radius - 20;
+            const outerR = radius + 4;
+            gaugeCtx.beginPath();
+            gaugeCtx.moveTo(cx + Math.cos(angle) * innerR, cy + Math.sin(angle) * innerR);
+            gaugeCtx.lineTo(cx + Math.cos(angle) * outerR, cy + Math.sin(angle) * outerR);
+            gaugeCtx.strokeStyle = '#ccc';
+            gaugeCtx.lineWidth = 1.5;
+            gaugeCtx.stroke();
+
+            gaugeCtx.fillStyle = '#ccc';
+            gaugeCtx.font = '10px Consolas';
+            gaugeCtx.textAlign = 'center';
+            gaugeCtx.fillText(v, cx + Math.cos(angle) * (innerR - 14), cy + Math.sin(angle) * (innerR - 14) + 3);
+        }
+
+        // 指针
+        const speedFraction = Math.min(speedKmh, maxSpeed) / maxSpeed;
+        const needleAngle = startAngle + speedFraction * Math.PI;
+        const needleLen = radius - 12;
+        const needleX = cx + Math.cos(needleAngle) * needleLen;
+        const needleY = cy + Math.sin(needleAngle) * needleLen;
+
+        gaugeCtx.beginPath();
+        gaugeCtx.moveTo(cx, cy);
+        gaugeCtx.lineTo(needleX, needleY);
+        gaugeCtx.strokeStyle = '#e94560';
+        gaugeCtx.lineWidth = 2.5;
+        gaugeCtx.stroke();
+
+        // 中心圆
+        gaugeCtx.fillStyle = '#e94560';
+        gaugeCtx.beginPath();
+        gaugeCtx.arc(cx, cy, 6, 0, Math.PI * 2);
+        gaugeCtx.fill();
+        gaugeCtx.fillStyle = '#fff';
+        gaugeCtx.beginPath();
+        gaugeCtx.arc(cx, cy, 3, 0, Math.PI * 2);
+        gaugeCtx.fill();
+
+        // 数字显示
+        gaugeCtx.fillStyle = '#fff';
+        gaugeCtx.font = 'bold 18px Consolas';
+        gaugeCtx.textAlign = 'center';
+        gaugeCtx.fillText(Math.round(speedKmh) + ' km/h', cx, cy - radius + 30);
+    }
+
+    // ============ 主循环 ============
+    function simulate(timestamp) {
+        if (!isRunning) { requestAnimationFrame(simulate); return; }
+
+        if (lastTime === null) lastTime = timestamp;
+        let dt = (timestamp - lastTime) / 1000;
+        if (dt <= 0) dt = 0.016;
+        if (dt > 0.1) dt = 0.1;
+        dt *= SIM_SPEED;
+        lastTime = timestamp;
+
+        // 更新区段占用
+        getSectionOccupancy();
+
+        // Train B — 速度控制 (平滑加减速至目标速度)
+        const targetBMps = trainBTargetSpeed / 3.6;
+        const currentBMps = trainB.speedKmh / 3.6;
+        let newBMps;
+        if (currentBMps < targetBMps) {
+            newBMps = currentBMps + trainBAccel * dt;
+            if (newBMps > targetBMps) newBMps = targetBMps;
+        } else {
+            newBMps = currentBMps - trainBBrake * dt;
+            if (newBMps < targetBMps) newBMps = targetBMps;
+        }
+        if (newBMps < 0) newBMps = 0;
+        trainB.speedKmh = newBMps * 3.6;
+        trainB.distM += newBMps * dt;
+        trainB.distM = ((trainB.distM % TRACK_LENGTH_M) + TRACK_LENGTH_M) % TRACK_LENGTH_M;
+
+        // 重新计算区段 (Train B 移动后)
+        getSectionOccupancy();
+
+        // Train A — 固定闭塞阶梯式控车
+        // 原理：速度由当前区段的信号低频码决定（阶梯式），不是连续制动曲线
+        //       列车在接近H信号机时制动停车，绝对不允许越过H信号机
+        let atoResult;
+        if (autoMode) {
+            activeLFCode = getAutoLFCode(trainA.distM);
+
+            // 阶梯式控车核心：根据信号低频码确定目标速度（阶梯跳变，非连续曲线）
+            const signalTargetKmh = LF_CODE_CONFIG[activeLFCode].targetSpeed;
+            const currentSpeedMs = trainA.speedKmh / 3.6;
+            const targetSpeedMs = signalTargetKmh / 3.6;
+            let newSpeedMs;
+            const speedDiff = targetSpeedMs - currentSpeedMs;
+            if (speedDiff > 0) {
+                newSpeedMs = currentSpeedMs + FB_CONFIG.maxAccel * dt;
+                if (newSpeedMs > targetSpeedMs) newSpeedMs = targetSpeedMs;
+            } else if (speedDiff < 0) {
+                newSpeedMs = currentSpeedMs - FB_CONFIG.serviceBrake * dt;
+                if (newSpeedMs < targetSpeedMs) newSpeedMs = targetSpeedMs;
+            } else {
+                newSpeedMs = targetSpeedMs;
+            }
+            if (newSpeedMs < 0) newSpeedMs = 0;
+            trainA.speedKmh = newSpeedMs * 3.6;
+
+            // H信号机防护：查找前方第一个被占用的区段（H信号机位置）
+            const mySection = getSectionIndex(trainA.distM);
+            let firstOccupiedSec = -1;
+            for (let i = 1; i <= NUM_SECTIONS; i++) {
+                const checkSec = (mySection + i) % NUM_SECTIONS;
+                if (sectionOccupied[checkSec]) {
+                    firstOccupiedSec = checkSec;
+                    break;
+                }
+            }
+
+            if (firstOccupiedSec >= 0) {
+                const hSignalPosM = firstOccupiedSec * SECTION_LENGTH_M;
+                let distToSignal = hSignalPosM - trainA.distM;
+                if (distToSignal < 0) distToSignal += TRACK_LENGTH_M;
+
+                const stopMargin = trainA.lengthM + 5;
+                const distToStopPoint = distToSignal - stopMargin;
+
+                if (distToStopPoint <= 0) {
+                    // 已到达停车点 → 立即停车，绝不越过H信号机
+                    const stopPosM = hSignalPosM - stopMargin;
+                    trainA.distM = ((stopPosM % TRACK_LENGTH_M) + TRACK_LENGTH_M) % TRACK_LENGTH_M;
+                    trainA.speedKmh = 0;
+                } else {
+                    // 阶梯式控车：判断当前速度下制动距离是否已达到需制动的距离
+                    // 若制动距离 >= 到H信号机的距离，立即开始制动（目标速度降为0）
+                    const curMs = trainA.speedKmh / 3.6;
+                    const brakingDist = (curMs * curMs) / (2 * FB_CONFIG.serviceBrake);
+                    if (brakingDist >= distToStopPoint) {
+                        const brakedMs = curMs - FB_CONFIG.serviceBrake * dt;
+                        trainA.speedKmh = Math.max(0, brakedMs * 3.6);
+                    }
+                }
+            }
+
+            // 硬性防护：后车绝不允许进入被占用的区段
+            if (sectionOccupied[getSectionIndex(trainA.distM)]) {
+                const hSignalPosM = getSectionIndex(trainA.distM) * SECTION_LENGTH_M;
+                const stopPosM = hSignalPosM - trainA.lengthM - 5;
+                trainA.distM = ((stopPosM % TRACK_LENGTH_M) + TRACK_LENGTH_M) % TRACK_LENGTH_M;
+                trainA.speedKmh = 0;
+            }
+
+            const accel = (trainA.speedKmh / 3.6 - currentSpeedMs) / Math.max(dt, 0.001);
+            atoResult = {
+                accel: accel,
+                targetSpeedKmh: signalTargetKmh,
+                distToPreceding: Math.round(calculateDistanceToPreceding(trainA.distM)),
+                derivedCode: activeLFCode
+            };
+        } else {
+            activeLFCode = computeLFCodeFromRelays();
+            atoResult = updateFixedBlockSpeed(trainA, activeLFCode, dt);
+        }
+
+        // Train A — 位置更新
+        const speedAMps = trainA.speedKmh / 3.6;
+        trainA.distM += speedAMps * dt;
+        trainA.distM = ((trainA.distM % TRACK_LENGTH_M) + TRACK_LENGTH_M) % TRACK_LENGTH_M;
+
+        // 绘图
+        drawTrack();
+        drawGauge(trainA.speedKmh);
+
+        // 更新 UI 信息
+        elSpeedA.textContent = Math.round(trainA.speedKmh);
+        elSpeedB.textContent = Math.round(trainB.speedKmh);
+        elLfCodeA.textContent = activeLFCode;
+        elLfCodeA.style.color = LF_CODE_CONFIG[activeLFCode].color;
+        elTargetSpeedA.textContent = atoResult.targetSpeedKmh + ' km/h';
+        elAccelA.textContent = atoResult.accel.toFixed(2) + ' m/s²';
+        elSectionA.textContent = (getSectionIndex(trainA.distM) + 1);
+        elSectionB.textContent = (getSectionIndex(trainB.distM) + 1);
+        if (autoMode) {
+            elDistToPreceding.textContent = atoResult.distToPreceding + ' m';
+        } else {
+            elDistToPreceding.textContent = '-- (手动)';
+        }
+
+        requestAnimationFrame(simulate);
+    }
+
+    // ============ UI 交互 ============
+
+    function updateRelayButtons() {
+        relayButtons.forEach(btn => {
+            const relay = btn.dataset.relay;
+            if (relayStates[relay]) {
+                btn.classList.add('on');
+            } else {
+                btn.classList.remove('on');
+            }
+        });
+        // 更新继电器组合结果显示
+        const code = computeLFCodeFromRelays();
+        const cfg = LF_CODE_CONFIG[code];
+        elRelayLFCode.textContent = code;
+        elRelayLFCode.style.color = cfg.color;
+    }
+
+    function updateRelayResultDisplay() {
+        if (!autoMode) {
+            const code = computeLFCodeFromRelays();
+            const cfg = LF_CODE_CONFIG[code];
+            elRelayLFCode.textContent = code;
+            elRelayLFCode.style.color = cfg.color;
+        }
+    }
+
+    relayButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (autoMode) return; // ATO 模式下不允许手动操作继电器
+            const relay = btn.dataset.relay;
+            relayStates[relay] = !relayStates[relay];
+            updateRelayButtons();
+            updateRelayResultDisplay();
+        });
+    });
+
+    // Train B 手动控制按钮
+    btnBAccel.addEventListener('click', () => {
+        trainBTargetSpeed = Math.min(160, trainBTargetSpeed + 10);
+    });
+    btnBDecel.addEventListener('click', () => {
+        trainBTargetSpeed = Math.max(0, trainBTargetSpeed - 10);
+    });
+    btnBStop.addEventListener('click', () => {
+        trainBTargetSpeed = 0;
+    });
+    btnBStart.addEventListener('click', () => {
+        trainBTargetSpeed = 160;
+    });
+
+    btnATO.addEventListener('click', () => {
+        autoMode = !autoMode;
+        if (autoMode) {
+            activeLFCode = getAutoLFCode(trainA.distM);
+            elRelayLFCode.textContent = activeLFCode;
+            elRelayLFCode.style.color = LF_CODE_CONFIG[activeLFCode].color;
+        } else {
+            activeLFCode = computeLFCodeFromRelays();
+            updateRelayResultDisplay();
+        }
+        updateRelayButtons();
+        updateModeIndicator();
+    });
+
+    btnReset.addEventListener('click', () => {
+        // 重置为初始状态：Train A 在区段1静止，Train B 在区段3以160 km/h行驶
+        trainA.distM = 2000;
+        trainA.speedKmh = 0;
+        trainB.distM = 4666;
+        trainB.speedKmh = 160;
+        trainBTargetSpeed = 160;
+        getSectionOccupancy();
+        relayStates = {
+            ZXJ: false, LXJ: false, LUXJ: false, X1LXJ: false, TXJ: false, YXJ: false
+        };
+        if (autoMode) {
+            activeLFCode = getAutoLFCode(trainA.distM);
+        } else {
+            activeLFCode = computeLFCodeFromRelays();
+        }
+        updateRelayButtons();
+        updateRelayResultDisplay();
+        updateModeIndicator();
+    });
+
+    function updateModeIndicator() {
+        if (autoMode) {
+            elModeIndicator.innerHTML = '<span class="mode-auto">⚡ ATO 自动模式</span>';
+            btnATO.textContent = '切换手动模式';
+            btnATO.classList.remove('running');
+            relayButtons.forEach(btn => btn.style.opacity = '0.5');
+            elRelayLFCode.textContent = activeLFCode;
+            elRelayLFCode.style.color = LF_CODE_CONFIG[activeLFCode].color;
+            elLfCodeLabel.textContent = '低频码(固定闭塞)：';
+        } else {
+            elModeIndicator.innerHTML = '<span class="mode-manual">🔧 手动控制模式</span>';
+            btnATO.textContent = '切换 ATO 模式';
+            btnATO.classList.add('running');
+            relayButtons.forEach(btn => btn.style.opacity = '1');
+            updateRelayResultDisplay();
+            elLfCodeLabel.textContent = '低频码(继电器)：';
+        }
+    }
+
+    // ============ 初始化 ============
+    function init() {
+        canvas.width = CANVAS_W;
+        canvas.height = CANVAS_H;
+
+        getSectionOccupancy();
+        activeLFCode = getAutoLFCode(trainA.distM);
+        updateRelayButtons();
+        updateModeIndicator();
+        drawGauge(0);
+        lastTime = null;
+        requestAnimationFrame(simulate);
+    }
+
+    init();
+})();
+</script>
+</body>
+</html>
